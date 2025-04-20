@@ -9,6 +9,7 @@ const UserController = require('../controllers/UserController')
 // });
 userRouter.post('/login', UserController.customerLogin);
 userRouter.post('/login/v2', UserController.customerLoginV2);
+userRouter.post('/login-google', UserController.googleSignIn); // Đăng nhập bằng Google
 userRouter.post('/logout', UserController.logout)
 userRouter.post('/signup/request-otp', UserController.requestOtp);  // Gửi OTP
 userRouter.post('/signup/verify-otp', UserController.verifyOtp);    // Xác minh OTP

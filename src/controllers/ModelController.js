@@ -41,10 +41,26 @@ class ModelController {
         try {
             const category = await Category.findOne({categoryName: req.params.name})
             if (category) {
-                const model = await Model.find({category: category._id})
+                const model = await Model.find({category: category._id}).populate('products')
                 if (!model) res.send({message: "Model not found"})
                 res.send(model)
             }
+        }catch (error) {
+            res.status(500).json({ message: error.message})
+        }
+    }
+
+    // get models by search input
+    async getModelBySearch(req,res) {
+        try {
+            const search = req.params.search
+            const model = await Model.find({$or: [
+                {name: {$regex: search, $options: 'i'}},
+                {description: {$regex: search, $options: 'i'}},
+                {slug: {$regex: search, $options: 'i'}},
+            ]}).populate('products')
+            if (!model) res.status(400).json({ message : 'No one model found'})
+            res.status(200).json(model)
         }catch (error) {
             res.status(500).json({ message: error.message})
         }

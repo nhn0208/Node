@@ -21,6 +21,7 @@ class UserController {
     // Check auth
     async checkAuth(req,res) {
         const token = req.cookies.token
+        console.log(token)
         if (!token) res.status(401).json({message: "Not Authenticated"})
         else {
             const decoded = jwt.verify(token, process.env.JWT_SECRET || 'SECRET');
@@ -31,6 +32,83 @@ class UserController {
             return res.status(200).json(user);
         }
 
+    }
+
+    // Google Sign-In
+    async googleSignIn(req, res) {
+        try {
+            const { email } = req.body;
+            console.log(email)
+            // Check if the user already exists in the database
+            let user = await User.findOne({ username: email });
+
+            if (!user) {
+                // If the user doesn't exist, create a new user
+                const password =  otpGenerator.generate(8, {
+                    specialChars: true
+                });
+                // Mã hóa mật khẩu
+                const hashedPassword = await bcrypt.hash(password, 10);
+                user = new User({
+                    username: email,
+                    password: hashedPassword, // Use Google's unique user ID as a placeholder password
+                    role: 'customer', // Default role
+                });
+                await user.save();
+
+                const myAccessTokenObject = await myOAuth2Client.getAccessToken()
+                const myAccessToken = myAccessTokenObject?.token
+
+                const transporter = nodemailer.createTransport({
+                    service: 'gmail',
+                    auth: {
+                        type: 'OAuth2',
+                        user: process.env.ADMIN_EMAIL_ADDRESS,  // Email dùng để gửi OTP
+                        clientId: process.env.GOOGLE_MAILER_CLIENT_ID,
+                        clientSecret: process.env.GOOGLE_MAILER_CLIENT_SECRET,
+                        refresh_token: process.env.GOOGLE_MAILER_REFRESH_TOKEN,
+                        accessToken: myAccessToken
+                    }
+                });
+                const mailOptions = {
+                    to: email,
+                    subject: 'Thank you for signing up!',
+                    html: `<h3>Welcome to our service!</h3><p>Your temporary password is: ${password}</p><p>Please change your password after logging in.</p>`
+                };
+                await transporter.sendMail(mailOptions);
+            }
+
+            // Generate a JWT token for the user
+            const token = jwt.sign(
+                {
+                    userId: user._id,
+                    role: user.role,
+                },
+                process.env.JWT_SECRET || 'SECRET',
+                { expiresIn: '1d' } // Token expires in 1 day
+            );
+
+            // Send the token in an HTTP-only cookie
+            res.cookie('token', token, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'None',
+                maxAge: 24 * 60 * 60 * 1000, // 1 day
+            });
+
+            res.status(200).json({
+                message: 'Login successful',
+                token,
+                user: {
+                    _id: user._id,
+                    username: user.username,
+                    role: user.role,
+                },
+            });
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ message: 'Google Sign-In failed', error: error.message });
+        }
     }
 
     // customer login
@@ -64,7 +142,7 @@ class UserController {
             res.cookie('token', token, {
                 httpOnly: true,  // Không cho phép truy cập từ JavaScript
                 secure: process.env.NODE_ENV === 'production', // Chỉ dùng HTTPS ở môi trường production
-                sameSite: 'Strict', // Chống CSRF
+                sameSite: 'None', // Chống CSRF
                 maxAge: 24 * 60 * 60 * 1000, // Token hết hạn sau 1 ngày
             });
             //console.log(token)
@@ -258,7 +336,7 @@ class UserController {
 
     //logout
     async logout(req, res) {
-        res.clearCookie('token', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'Strict' });
+        res.clearCookie('token', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'None' });
         res.status(200).json({ message: 'Logged out successfully' });
     }
 }

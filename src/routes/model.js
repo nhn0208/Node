@@ -9,6 +9,7 @@ modelRouter.get('/:slug', ModelController.getModelBySlug)
 modelRouter.get('/category/:name', ModelController.getModelByCategory)
 modelRouter.get('/:id', ModelController.getModelById)
 modelRouter.get('/', ModelController.getAllModel)
+modelRouter.get('/search/:search', ModelController.getModelBySearch)
 
 module.exports = {
     modelRouter
